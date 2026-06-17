@@ -22,7 +22,7 @@ from datetime import datetime, timezone, timedelta
 
 def fetch_binance_klines(symbol="BTCUSDT", interval="1m", start_dt=None, end_dt=None):
     import requests
-    url = "https://api.binance.com/api/v3/klines"
+    url = "https://api.binance.us/api/v3/klines"
     all_klines, start_ms, end_ms = [], int(start_dt.timestamp()*1000), int(end_dt.timestamp()*1000)
     while start_ms < end_ms:
         r = requests.get(url, params={"symbol":symbol,"interval":interval,
@@ -231,7 +231,7 @@ def run_backtest(df, risk_pct=0.01, label="ICT", verbose=True, kronos_signals=No
 
     if verbose: print("Sweep detection (13:00–16:00 UTC)...")
     sweeps = detect_sweeps(a, ranges)
-    if verbose: print(f"  → {len(sweeps)} raw sweeps")
+    if verbose: print(f"  -> {len(sweeps)} raw sweeps")
 
     trades, last_exit_pos = [], -1
     COOLDOWN = 120   # candles (= 120 min)
@@ -261,7 +261,7 @@ def run_backtest(df, risk_pct=0.01, label="ICT", verbose=True, kronos_signals=No
         trades.append(t)
         last_exit_pos = pos + COOLDOWN  # next trade after cooldown
 
-    if verbose: print(f"  → {len(trades)} trades")
+    if verbose: print(f"  -> {len(trades)} trades")
     return trades
 
 
@@ -301,7 +301,7 @@ if __name__ == "__main__":
     if USE_LIVE:
         end_dt   = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
         start_dt = end_dt - timedelta(days=60)
-        print(f"Fetching live BTC/USDT 1m: {start_dt.date()} → {end_dt.date()}")
+        print(f"Fetching live BTC/USDT 1m: {start_dt.date()} -> {end_dt.date()}")
         df = fetch_binance_klines("BTCUSDT", "1m", start_dt, end_dt)
     else:
         from synthetic_data import generate_synthetic_btc
