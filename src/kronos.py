@@ -16,9 +16,13 @@ Falls back to MockKronos if torch/model unavailable — produces random signals
 to allow dry-run testing of the pipeline.
 """
 
+import sys
 import numpy as np
 import pandas as pd
 from datetime import timezone
+
+# ── Kronos repo path (cloned to C:/kronos) ──
+KRONOS_REPO = "C:/kronos"
 
 CONTEXT_LEN  = 400    # candles fed to Kronos
 FORECAST_LEN = 120    # candles predicted (~2 hr on 1-min)
@@ -41,6 +45,8 @@ class KronosSignalGenerator:
         print(f"[Kronos] Loading model: {model_name} ...")
         try:
             import sys, os
+            if KRONOS_REPO not in sys.path:
+                sys.path.insert(0, KRONOS_REPO)
             # Kronos repo must be on the path — clone it alongside this project:
             #   git clone https://github.com/shiyu-coder/Kronos
             #   export PYTHONPATH=./Kronos
@@ -76,7 +82,7 @@ class KronosSignalGenerator:
             x_timestamp=x_ts,
             y_timestamp=y_ts,
             pred_len=FORECAST_LEN,
-            T=0.8, top_p=0.9, sample_count=3,   # average 3 paths for stability
+            T=0.8, top_p=0.9, sample_count=1,   # 1 sample for CPU speed
         )
 
         current_close   = context_df["close"].iloc[-1]
@@ -91,7 +97,8 @@ class KronosSignalGenerator:
         signals = {}
         dates = pd.Series(df.index.date).unique()
 
-        for d in dates:
+        print(f"[Kronos] Generating {len(dates)} daily signals (CPU: ~3-5s each)...")
+        for i, d in enumerate(dates):
             # Get the exact signal candle: 12:30 UTC on day d
             signal_ts = pd.Timestamp(year=d.year, month=d.month, day=d.day,
                                      hour=SIGNAL_HOUR, minute=SIGNAL_MIN,
@@ -105,8 +112,10 @@ class KronosSignalGenerator:
             try:
                 direction = self._forecast_direction(context)
                 signals[d] = direction
+                print(f"  [{i+1}/{len(dates)}] {d}: {direction}", end="\r")
             except Exception as e:
                 print(f"[Kronos] Forecast failed for {d}: {e}")
+        print()  # newline after progress
 
         bull = sum(1 for v in signals.values() if v == "bullish")
         print(f"[Kronos] {len(signals)} signals generated — "
@@ -143,7 +152,7 @@ class MockKronos:
 # HELPER: auto-select real vs mock
 # ──────────────────────────────────────────────
 
-def get_kronos(use_real=False):
+def get_kronos(use_real=True):
     """
     Returns KronosSignalGenerator if use_real=True and model loads OK,
     otherwise MockKronos.
@@ -165,7 +174,7 @@ if __name__ == "__main__":
     df = generate_synthetic_btc(days=30)
     print(f"Data: {len(df):,} candles")
 
-    gen     = get_kronos(use_real=False)   # swap True for real Kronos
+    gen     = get_kronos(use_real=False)
     signals = gen.generate_signals(df)
 
     sample = dict(list(signals.items())[:5])
