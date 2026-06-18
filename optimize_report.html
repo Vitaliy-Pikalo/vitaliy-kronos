@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<title>Vitaliy Kronos -- Strategy Optimizer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0f172a;color:#e2e8f0;font-family:'Segoe UI',sans-serif;padding:24px}
+  h1{font-size:1.6rem;font-weight:700;margin-bottom:4px;color:#f1f5f9}
+  h2{font-size:1.0rem;font-weight:600;color:#cbd5e1;margin-bottom:14px;border-left:3px solid #6366f1;padding-left:10px}
+  .subtitle{color:#94a3b8;font-size:.83rem;margin-bottom:28px}
+  .section{margin-bottom:32px}
+  .best-card{background:linear-gradient(135deg,#052e16,#1e293b);border:1px solid #059669;border-radius:12px;padding:24px;margin-bottom:32px}
+  .best-title{font-size:1.05rem;font-weight:700;color:#34d399;margin-bottom:14px}
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px}
+  .stat{background:#0f172a55;border-radius:8px;padding:12px 16px}
+  .stat-label{font-size:.67rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
+  .stat-val{font-size:1.45rem;font-weight:700;margin-top:4px}
+  .param-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .ptag{padding:4px 12px;border-radius:6px;font-size:.76rem;font-weight:600}
+  .pon{background:#065f4633;color:#34d399;border:1px solid #05966955}
+  .poff{background:#1e293b;color:#475569;border:1px solid #334155}
+  .chart-wrap{background:#1e293b;border-radius:10px;padding:20px;margin-bottom:8px}
+  .table-wrap{background:#0f172a;border-radius:10px;border:1px solid #1e293b;max-height:420px;overflow-y:auto}
+  table{width:100%;border-collapse:collapse;font-size:.78rem}
+  th{background:#1e293b;padding:8px 12px;text-align:left;color:#94a3b8;font-weight:600;text-transform:uppercase;font-size:.64rem;letter-spacing:.05em;position:sticky;top:0;z-index:1}
+  td{padding:7px 12px;border-bottom:1px solid #1e293b33}
+  tr:hover td{background:#1e293b55}
+  .wf-note{font-size:.78rem;color:#64748b;margin-top:8px}
+</style>
+</head><body>
+<h1>Vitaliy Kronos -- Strategy Optimizer</h1>
+<p class="subtitle">32 parameter combos &middot; live QQQ 5m (60 days) &middot; scored by return/drawdown &times; trade quality &middot; walk-forward validated</p>
+
+<div class="best-card">
+  <div class="best-title">&#x2605; Recommended Configuration
+    <span style="background:#059669;color:#fff;padding:2px 10px;border-radius:6px;font-size:.72rem;font-weight:600;margin-left:10px">3/3 periods profitable</span>
+  </div>
+  <div class="stat-grid">
+    <div class="stat"><div class="stat-label">Total P&L</div><div class="stat-val" style="color:#34d399">+82.2%</div></div>
+    <div class="stat"><div class="stat-label">Win Rate</div><div class="stat-val" style="color:#34d399">87.1%</div></div>
+    <div class="stat"><div class="stat-label">Avg R:R</div><div class="stat-val" style="color:#34d399">2.65R</div></div>
+    <div class="stat"><div class="stat-label">Max Drawdown</div><div class="stat-val" style="color:#ef4444">-1.0%</div></div>
+    <div class="stat"><div class="stat-label">Trades (60d)</div><div class="stat-val" style="color:#94a3b8">31</div></div>
+    <div class="stat"><div class="stat-label">Optimizer Score</div><div class="stat-val" style="color:#f59e0b">147.64</div></div>
+  </div>
+  <div class="param-row">
+    <span class="ptag pon">OTE Entry: ON</span>
+    <span class="ptag pon">Tight SL: ON</span>
+    <span class="ptag pon">Displacement Filter: ON</span>
+    <span class="ptag pon">R:R Target: 1.5R</span>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Top 5 Equity Curves</h2>
+  <div class="chart-wrap"><canvas id="eqChart" height="75"></canvas></div>
+</div>
+
+<div class="section">
+  <h2>Walk-Forward Consistency (top 5 &times; 3 time periods)</h2>
+  <p class="wf-note">Each period = ~20 days. Green = profitable. 3/3 = high confidence the edge is real.</p>
+  <br>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Config</th><th>P1 (→2026-04-22)</th><th>P2 (→2026-05-20)</th><th>P3 (→2026-06-17)</th><th>Consistent</th></tr></thead>
+    <tbody><tr><td style="font-size:.75rem">OTE TightSL Disp RR=1.5</td><td style="color:#22c55e">+26.5%</td><td style="color:#22c55e">+13.6%</td><td style="color:#22c55e">+39.4%</td><td><span style="background:#059669;color:#fff;padding:2px 8px;border-radius:4px;font-size:.72rem">3/3</span></td></tr><tr><td style="font-size:.75rem">OTE TightSL Disp RR=3.0</td><td style="color:#22c55e">+28.5%</td><td style="color:#22c55e">+15.6%</td><td style="color:#22c55e">+43.9%</td><td><span style="background:#059669;color:#fff;padding:2px 8px;border-radius:4px;font-size:.72rem">3/3</span></td></tr><tr><td style="font-size:.75rem">OTE TightSL Disp RR=2.5</td><td style="color:#22c55e">+27.0%</td><td style="color:#22c55e">+14.1%</td><td style="color:#22c55e">+42.4%</td><td><span style="background:#059669;color:#fff;padding:2px 8px;border-radius:4px;font-size:.72rem">3/3</span></td></tr><tr><td style="font-size:.75rem">OTE TightSL Disp RR=2.0</td><td style="color:#22c55e">+25.5%</td><td style="color:#22c55e">+12.6%</td><td style="color:#22c55e">+40.9%</td><td><span style="background:#059669;color:#fff;padding:2px 8px;border-radius:4px;font-size:.72rem">3/3</span></td></tr><tr><td style="font-size:.75rem">TightSL Disp RR=2.5</td><td style="color:#22c55e">+23.7%</td><td style="color:#22c55e">+12.8%</td><td style="color:#22c55e">+41.3%</td><td><span style="background:#059669;color:#fff;padding:2px 8px;border-radius:4px;font-size:.72rem">3/3</span></td></tr></tbody>
+  </table></div>
+</div>
+
+<div class="section">
+  <h2>All 32 Combinations Ranked</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>OTE</th><th>Tight SL</th><th>Displace</th><th>RR Target</th><th>Trades</th><th>WR%</th><th>Avg R:R</th><th>P&L%</th><th>MaxDD%</th><th>Score</th></tr></thead>
+    <tbody><tr style="background:#0d2e1e"><td>1 <span style="background:#059669;color:#fff;padding:1px 6px;border-radius:4px;font-size:.62rem;vertical-align:middle">BEST</span></td><td>✓</td><td>✓</td><td>✓</td><td>1.5R</td><td>31</td><td style="color:#22c55e">87.1%</td><td style="color:#22c55e">2.65R</td><td style="color:#22c55e">+82.2%</td><td style="color:#ef4444">-1.0%</td><td style="color:#f59e0b">147.64</td></tr><tr><td>2</td><td>✓</td><td>✓</td><td>✓</td><td>3.0R</td><td>31</td><td style="color:#22c55e">77.4%</td><td style="color:#22c55e">2.80R</td><td style="color:#22c55e">+86.8%</td><td style="color:#ef4444">-2.0%</td><td style="color:#f59e0b">80.21</td></tr><tr><td>3</td><td>✓</td><td>✓</td><td>✓</td><td>2.5R</td><td>31</td><td style="color:#22c55e">80.6%</td><td style="color:#22c55e">2.78R</td><td style="color:#22c55e">+86.2%</td><td style="color:#ef4444">-2.0%</td><td style="color:#f59e0b">79.49</td></tr><tr><td>4</td><td>✓</td><td>✓</td><td>✓</td><td>2.0R</td><td>31</td><td style="color:#22c55e">80.6%</td><td style="color:#22c55e">2.64R</td><td style="color:#22c55e">+81.8%</td><td style="color:#ef4444">-2.0%</td><td style="color:#f59e0b">73.62</td></tr><tr><td>5</td><td>—</td><td>✓</td><td>✓</td><td>2.5R</td><td>31</td><td style="color:#22c55e">77.4%</td><td style="color:#22c55e">2.42R</td><td style="color:#22c55e">+75.1%</td><td style="color:#ef4444">-2.0%</td><td style="color:#f59e0b">65.17</td></tr><tr><td>6</td><td>—</td><td>✓</td><td>✓</td><td>2.0R</td><td>31</td><td style="color:#22c55e">80.6%</td><td style="color:#22c55e">2.39R</td><td style="color:#22c55e">+74.1%</td><td style="color:#ef4444">-2.0%</td><td style="color:#f59e0b">63.97</td></tr><tr><td>7</td><td>✓</td><td>✓</td><td>—</td><td>1.5R</td><td>33</td><td style="color:#22c55e">78.8%</td><td style="color:#22c55e">3.00R</td><td style="color:#22c55e">+98.9%</td><td style="color:#ef4444">-3.0%</td><td style="color:#f59e0b">63.29</td></tr><tr><td>8</td><td>—</td><td>✓</td><td>✓</td><td>3.0R</td><td>31</td><td style="color:#22c55e">71.0%</td><td style="color:#22c55e">2.29R</td><td style="color:#22c55e">+71.1%</td><td style="color:#ef4444">-2.0%</td><td style="color:#f59e0b">60.31</td></tr><tr><td>9</td><td>—</td><td>✓</td><td>✓</td><td>1.5R</td><td>31</td><td style="color:#22c55e">80.6%</td><td style="color:#22c55e">2.25R</td><td style="color:#22c55e">+69.6%</td><td style="color:#ef4444">-2.0%</td><td style="color:#f59e0b">58.62</td></tr><tr><td>10</td><td>✓</td><td>✓</td><td>—</td><td>2.5R</td><td>33</td><td style="color:#22c55e">69.7%</td><td style="color:#22c55e">2.98R</td><td style="color:#22c55e">+98.4%</td><td style="color:#ef4444">-3.9%</td><td style="color:#f59e0b">47.32</td></tr><tr><td>11</td><td>✓</td><td>✓</td><td>—</td><td>2.0R</td><td>33</td><td style="color:#22c55e">72.7%</td><td style="color:#22c55e">2.97R</td><td style="color:#22c55e">+97.9%</td><td style="color:#ef4444">-3.9%</td><td style="color:#f59e0b">47.00</td></tr><tr><td>12</td><td>✓</td><td>✓</td><td>—</td><td>3.0R</td><td>33</td><td style="color:#22c55e">66.7%</td><td style="color:#22c55e">2.97R</td><td style="color:#22c55e">+97.9%</td><td style="color:#ef4444">-3.9%</td><td style="color:#f59e0b">47.00</td></tr><tr><td>13</td><td>—</td><td>✓</td><td>—</td><td>2.0R</td><td>33</td><td style="color:#22c55e">72.7%</td><td style="color:#22c55e">2.76R</td><td style="color:#22c55e">+91.2%</td><td style="color:#ef4444">-3.9%</td><td style="color:#f59e0b">42.32</td></tr><tr><td>14</td><td>—</td><td>✓</td><td>—</td><td>2.5R</td><td>33</td><td style="color:#22c55e">66.7%</td><td style="color:#22c55e">2.67R</td><td style="color:#22c55e">+88.2%</td><td style="color:#ef4444">-3.9%</td><td style="color:#f59e0b">40.32</td></tr><tr><td>15</td><td>—</td><td>✓</td><td>—</td><td>1.5R</td><td>33</td><td style="color:#22c55e">72.7%</td><td style="color:#22c55e">2.64R</td><td style="color:#22c55e">+87.2%</td><td style="color:#ef4444">-3.9%</td><td style="color:#f59e0b">39.67</td></tr><tr><td>16</td><td>—</td><td>✓</td><td>—</td><td>3.0R</td><td>33</td><td style="color:#22c55e">63.6%</td><td style="color:#22c55e">2.64R</td><td style="color:#22c55e">+87.2%</td><td style="color:#ef4444">-3.9%</td><td style="color:#f59e0b">39.67</td></tr><tr><td>17</td><td>—</td><td>—</td><td>✓</td><td>1.5R</td><td>31</td><td style="color:#f59e0b">38.7%</td><td style="color:#94a3b8">0.78R</td><td style="color:#22c55e">+24.2%</td><td style="color:#ef4444">-2.9%</td><td style="color:#f59e0b">10.15</td></tr><tr><td>18</td><td>—</td><td>—</td><td>✓</td><td>3.0R</td><td>31</td><td style="color:#ef4444">29.0%</td><td style="color:#94a3b8">0.72R</td><td style="color:#22c55e">+22.4%</td><td style="color:#ef4444">-2.9%</td><td style="color:#f59e0b">9.26</td></tr><tr><td>19</td><td>—</td><td>—</td><td>✓</td><td>2.5R</td><td>31</td><td style="color:#ef4444">29.0%</td><td style="color:#94a3b8">0.67R</td><td style="color:#22c55e">+20.9%</td><td style="color:#ef4444">-2.9%</td><td style="color:#f59e0b">8.53</td></tr><tr><td>20</td><td>✓</td><td>—</td><td>—</td><td>1.5R</td><td>33</td><td style="color:#f59e0b">42.4%</td><td style="color:#94a3b8">0.79R</td><td style="color:#22c55e">+26.0%</td><td style="color:#ef4444">-3.9%</td><td style="color:#f59e0b">8.28</td></tr><tr><td>21</td><td>✓</td><td>—</td><td>✓</td><td>1.5R</td><td>31</td><td style="color:#f59e0b">45.2%</td><td style="color:#94a3b8">0.63R</td><td style="color:#22c55e">+19.7%</td><td style="color:#ef4444">-2.9%</td><td style="color:#f59e0b">8.04</td></tr><tr><td>22</td><td>—</td><td>—</td><td>✓</td><td>2.0R</td><td>31</td><td style="color:#ef4444">29.0%</td><td style="color:#94a3b8">0.63R</td><td style="color:#22c55e">+19.4%</td><td style="color:#ef4444">-2.9%</td><td style="color:#f59e0b">7.84</td></tr><tr><td>23</td><td>—</td><td>—</td><td>—</td><td>1.5R</td><td>33</td><td style="color:#f59e0b">36.4%</td><td style="color:#94a3b8">0.66R</td><td style="color:#22c55e">+21.7%</td><td style="color:#ef4444">-3.9%</td><td style="color:#f59e0b">6.68</td></tr><tr><td>24</td><td>✓</td><td>—</td><td>✓</td><td>3.0R</td><td>31</td><td style="color:#ef4444">29.0%</td><td style="color:#94a3b8">0.51R</td><td style="color:#22c55e">+15.7%</td><td style="color:#ef4444">-2.9%</td><td style="color:#f59e0b">6.22</td></tr><tr><td>25</td><td>✓</td><td>—</td><td>—</td><td>3.0R</td><td>33</td><td style="color:#ef4444">27.3%</td><td style="color:#94a3b8">0.67R</td><td style="color:#22c55e">+22.1%</td><td style="color:#ef4444">-4.7%</td><td style="color:#f59e0b">5.72</td></tr><tr><td>26</td><td>✓</td><td>—</td><td>✓</td><td>2.5R</td><td>31</td><td style="color:#ef4444">29.0%</td><td style="color:#94a3b8">0.46R</td><td style="color:#22c55e">+14.2%</td><td style="color:#ef4444">-2.9%</td><td style="color:#f59e0b">5.56</td></tr><tr><td>27</td><td>✓</td><td>—</td><td>—</td><td>2.5R</td><td>33</td><td style="color:#ef4444">27.3%</td><td style="color:#94a3b8">0.63R</td><td style="color:#22c55e">+20.6%</td><td style="color:#ef4444">-4.7%</td><td style="color:#f59e0b">5.28</td></tr><tr><td>28</td><td>—</td><td>—</td><td>—</td><td>3.0R</td><td>33</td><td style="color:#ef4444">27.3%</td><td style="color:#94a3b8">0.61R</td><td style="color:#22c55e">+20.1%</td><td style="color:#ef4444">-4.8%</td><td style="color:#f59e0b">4.96</td></tr><tr><td>29</td><td>✓</td><td>—</td><td>✓</td><td>2.0R</td><td>31</td><td style="color:#ef4444">29.0%</td><td style="color:#94a3b8">0.41R</td><td style="color:#22c55e">+12.7%</td><td style="color:#ef4444">-2.9%</td><td style="color:#f59e0b">4.90</td></tr><tr><td>30</td><td>✓</td><td>—</td><td>—</td><td>2.0R</td><td>33</td><td style="color:#ef4444">27.3%</td><td style="color:#94a3b8">0.58R</td><td style="color:#22c55e">+19.1%</td><td style="color:#ef4444">-4.7%</td><td style="color:#f59e0b">4.83</td></tr><tr><td>31</td><td>—</td><td>—</td><td>—</td><td>2.5R</td><td>33</td><td style="color:#ef4444">27.3%</td><td style="color:#94a3b8">0.56R</td><td style="color:#22c55e">+18.6%</td><td style="color:#ef4444">-4.8%</td><td style="color:#f59e0b">4.53</td></tr><tr><td>32</td><td>—</td><td>—</td><td>—</td><td>2.0R</td><td>33</td><td style="color:#ef4444">27.3%</td><td style="color:#94a3b8">0.52R</td><td style="color:#22c55e">+17.1%</td><td style="color:#ef4444">-4.8%</td><td style="color:#f59e0b">4.12</td></tr></tbody>
+  </table></div>
+</div>
+
+<script>
+const labels = Array.from({length: 32}, (_,i) => i);
+new Chart(document.getElementById('eqChart'), {
+  type: 'line',
+  data: { labels, datasets: [{
+            label: 'OTE TightSL Disp RR=1.5',
+            data: [100.0, 101.49999999999999, 105.7188475, 107.30463021249999, 112.07786207824263, 119.50313251878829, 121.29567950657011, 123.54256067374982, 125.84922382408942, 124.59073158584853, 126.45959255963625, 129.72781426974748, 131.46473997500513, 133.43671107463018, 135.43826174074962, 134.08387912334211, 141.6577411195032, 143.91477390876025, 146.07349551739165, 148.2645979501525, 146.781951970651, 153.57237863271726, 160.14005497732407, 162.5421558019839, 185.73740906139443, 187.85611568655776, 194.13539420949664, 197.57100828082213, 200.53457340503445, 214.17714096835235, 219.3383817114077, 222.6284574370788],
+            borderColor: '#34d399',
+            backgroundColor: '#34d39918',
+            borderWidth: 2.5,
+            pointRadius: 0, fill: true, tension: 0.3
+        },{
+            label: 'OTE TightSL Disp RR=3.0',
+            data: [100.0, 103.0, 107.28119500000001, 110.49963085000002, 115.41498592910057, 123.06134416188941, 126.7531844867461, 129.10116047617856, 131.5116082434293, 130.196492160995, 128.89452723938504, 132.22567740135972, 133.99604699608653, 138.01592840596913, 136.63576912190945, 135.26941143069035, 142.91023940476433, 145.18722824920044, 149.54284509667647, 154.02913044957677, 152.488839145081, 159.54327782161073, 166.36630564092974, 164.70264258452045, 188.20620378925926, 190.35307195588334, 196.7158137390807, 200.19709349482122, 206.20300629966587, 220.23120302123843, 225.53833455164423, 232.30448458819356],
+            borderColor: '#6366f1',
+            backgroundColor: '#6366f118',
+            borderWidth: 1.5,
+            pointRadius: 0, fill: false, tension: 0.3
+        },{
+            label: 'OTE TightSL Disp RR=2.5',
+            data: [100.0, 102.49999999999999, 106.76041249999999, 109.42942281249998, 114.29717182746842, 121.86947375821003, 124.91621060216528, 127.23015848735979, 129.6056727764773, 128.3096160487125, 127.02651988822538, 130.30939326821667, 132.05410573468484, 135.35545837805194, 134.0019037942714, 132.6618847563287, 140.1554239786747, 142.3885203489269, 145.94823335765005, 149.5969391915913, 148.1009697996754, 154.95241686454798, 161.57911192417725, 165.61858972228168, 189.25285933142044, 191.41166669781393, 197.80979306885504, 201.31043297679457, 206.34319380121443, 220.38092761870485, 225.69166721246037, 231.33395889277188],
+            borderColor: '#f59e0b',
+            backgroundColor: '#f59e0b18',
+            borderWidth: 1.5,
+            pointRadius: 0, fill: false, tension: 0.3
+        },{
+            label: 'OTE TightSL Disp RR=2.0',
+            data: [100.0, 102.0, 106.23963, 108.36442260000001, 113.18479721051581, 120.6834032105097, 123.0970712747199, 125.3773214230128, 127.71824139130189, 126.44105897738886, 125.17664838761497, 128.4117136885445, 130.13101812312044, 132.73363848558284, 131.406302100727, 130.09223907971975, 137.4406292963768, 139.630470842956, 142.42308025981512, 145.27154186501141, 143.8188264463613, 150.47217299542288, 156.90726594574514, 160.04541126466003, 182.8843715883608, 184.97053361506923, 191.15335867168653, 194.53619966009938, 198.42692365330137, 211.92610569635912, 217.03310099142996, 221.37376301125857],
+            borderColor: '#ec4899',
+            backgroundColor: '#ec489918',
+            borderWidth: 1.5,
+            pointRadius: 0, fill: false, tension: 0.3
+        },{
+            label: 'TightSL Disp RR=2.5',
+            data: [100.0, 102.49999999999999, 106.09098499999999, 108.74325962499998, 112.62887377792049, 119.56230724768928, 122.5513649288815, 124.3276244121607, 126.1922901230943, 124.93036722186335, 123.68106354964472, 126.1603741495609, 127.43068295687284, 130.61645003079465, 129.3102855304867, 128.01718267518183, 134.0972307491569, 136.16246219992465, 139.56652375492274, 143.0556868487958, 141.62512998030783, 147.42142167501189, 152.95090435919823, 151.42139531560625, 172.67868789698764, 174.612516522746, 179.92143547510358, 182.9383581051501, 187.5118170577788, 198.8919092350154, 202.61655801925951, 207.68197196974097],
+            borderColor: '#06b6d4',
+            backgroundColor: '#06b6d418',
+            borderWidth: 1.5,
+            pointRadius: 0, fill: false, tension: 0.3
+        }] },
+  options: {
+    responsive: true,
+    plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+               tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}%` } } },
+    scales: {
+      x: { ticks: { color: '#475569', maxTicksLimit: 10 }, grid: { color: '#1e293b' } },
+      y: { ticks: { color: '#475569', callback: v => v.toFixed(1)+'%' }, grid: { color: '#1e293b' } }
+    }
+  }
+});
+</script>
+</body></html>

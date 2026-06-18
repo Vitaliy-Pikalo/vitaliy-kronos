@@ -138,9 +138,16 @@ def _find_fvg(df, sweep_pos, direction, lookforward=20):
 
 
 def _build_signal(direction, session, level, extreme, fvg, symbol="BTC"):
-    entry = fvg["mid"]
-    buf   = entry * 0.0005
-    sl    = (extreme - buf) if direction == "bullish" else (extreme + buf)
+    fvg_range = fvg["top"] - fvg["bot"]
+    # OTE entry: 62% deep into FVG (tighter risk, better RR than midpoint)
+    if fvg_range > 0:
+        entry = (fvg["bot"] + 0.38 * fvg_range) if direction == "bullish" \
+                else (fvg["top"] - 0.38 * fvg_range)
+    else:
+        entry = fvg["mid"]
+    # Tight SL: just beyond FVG edge instead of sweep extreme
+    buf   = entry * 0.0003
+    sl    = (fvg["bot"] - buf) if direction == "bullish" else (fvg["top"] + buf)
     risk  = abs(entry - sl)
     tp    = entry + 2.0 * risk * (1 if direction == "bullish" else -1)
     rr    = abs(tp - entry) / risk if risk > 0 else 0

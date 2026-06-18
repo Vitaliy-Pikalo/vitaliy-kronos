@@ -1,14 +1,19 @@
 """
 Vitaliy Kronos Project -- Main runner
-Compares ICT strategy across markets and AI filter.
+Compares ICT strategy across markets and refinement levels.
 
 Usage:
   python src/run.py                          # synthetic BTC + QQQ, mock Kronos
+  python src/run.py --live                   # real data (Binance.US + yfinance 5m)
+  python src/run.py --live --real-kronos     # real data + real Kronos model
   python src/run.py --market btc             # BTC only
   python src/run.py --market equity          # QQQ only
-  python src/run.py --live                   # real data (Binance.US + yfinance)
-  python src/run.py --live --real-kronos     # real data + real Kronos model
   python src/run.py --symbol SPY             # use SPY instead of QQQ
+
+Equity strategies compared:
+  1. Baseline   -- midpoint entry, sweep-extreme SL (original)
+  2. Refined    -- OTE entry (62% into FVG) + tight SL (FVG edge) + displacement filter
+  3. Ref+Kronos -- Refined with AI directional filter
 """
 
 import argparse
@@ -36,54 +41,75 @@ def get_btc_data(live=False):
         return generate_synthetic_btc(days=60)
 
 
-def get_equity_data(symbol="QQQ", live=False):
+def get_equity_data(symbol="QQQ", live=False, interval="5m"):
     if live:
-        print(f"Fetching live {symbol} 1m (7 days via yfinance)...")
-        return fetch_yfinance_klines(symbol, days=7, interval="1m")
+        days = 7 if interval == "1m" else 60
+        print(f"Fetching live {symbol} {interval} ({days} days via yfinance)...")
+        return fetch_yfinance_klines(symbol, days=days, interval=interval)
     else:
         from synthetic_data import generate_synthetic_equity
         print(f"Generating synthetic {symbol} 1m (60 days)...")
         return generate_synthetic_equity(symbol, days=60)
 
 
-def run_market(df, market_key, market_label, real_kronos=False):
-    """Run ICT-only and ICT+Kronos for one market. Returns (ict_stats, kronos_stats)."""
-    ict_trades   = run_backtest(df, risk_pct=0.01, label=f"ICT {market_label}",
-                                market=market_key)
-    ict_stats    = compute_stats(ict_trades, label=f"ICT {market_label}")
-
-    kronos_gen   = get_kronos(use_real=real_kronos)
-    signals      = kronos_gen.generate_signals(df)
-    ick_trades   = run_backtest(df, risk_pct=0.01, label=f"ICT+Kronos {market_label}",
-                                market=market_key, kronos_signals=signals)
-    ick_stats    = compute_stats(ick_trades, label=f"ICT+Kronos {market_label}")
-
-    for s in (ict_stats, ick_stats):
-        print(f"\n-- {s['label']} --")
-        for k, v in s.items():
-            if k not in ("equity", "trades_df"):
-                print(f"  {k}: {v}")
-
-    return ict_stats, ick_stats
+def run_single(df, market_key, label, kronos_signals=None,
+               use_ote=False, tight_sl=False, require_displacement=False, max_hold=120):
+    """Run one strategy variant and return stats dict."""
+    trades = run_backtest(df, risk_pct=0.01, label=label, market=market_key,
+                          use_ote=use_ote, tight_sl=tight_sl,
+                          require_displacement=require_displacement,
+                          max_hold=max_hold, kronos_signals=kronos_signals)
+    stats = compute_stats(trades, label=label)
+    print(f"\n-- {stats['label']} --")
+    for k, v in stats.items():
+        if k not in ("equity", "trades_df"):
+            print(f"  {k}: {v}")
+    return stats
 
 
 def run(live=False, real_kronos=False, market="all", symbol="QQQ"):
     results = {}
+    interval = "5m" if live else "1m"
+    # 5m candles: 2h hold = 24 candles. 1m candles: 2h = 120 candles.
+    eq_max_hold = 24 if interval == "5m" else 120
 
     if market in ("all", "btc"):
         df_btc = get_btc_data(live)
         print(f"  {len(df_btc):,} BTC candles -- ${df_btc['close'].min():,.0f}-${df_btc['close'].max():,.0f}")
-        results["btc_ict"], results["btc_kronos"] = run_market(df_btc, "btc", "BTC", real_kronos)
+        kronos_btc = get_kronos(use_real=real_kronos).generate_signals(df_btc)
+        results["btc_ict"]    = run_single(df_btc, "btc", "BTC ICT")
+        results["btc_kronos"] = run_single(df_btc, "btc", "BTC+Kronos", kronos_signals=kronos_btc)
         pd.DataFrame(results["btc_ict"].get("trades_df", [])).to_csv(OUT / "btc_trades.csv", index=False)
 
     if market in ("all", "equity"):
-        df_eq = get_equity_data(symbol, live)
-        print(f"  {len(df_eq):,} {symbol} candles -- ${df_eq['close'].min():,.2f}-${df_eq['close'].max():,.2f}")
-        results["eq_ict"], results["eq_kronos"] = run_market(df_eq, "equity", symbol, real_kronos)
-        pd.DataFrame(results["eq_ict"].get("trades_df", [])).to_csv(OUT / f"{symbol.lower()}_trades.csv", index=False)
+        df_eq = get_equity_data(symbol, live, interval=interval)
+        print(f"  {len(df_eq):,} {symbol} candles ({interval}) -- ${df_eq['close'].min():,.2f}-${df_eq['close'].max():,.2f}")
+        kronos_eq = get_kronos(use_real=real_kronos).generate_signals(df_eq)
 
-    if len(results) > 0:
-        html = build_report(results, symbol=symbol, live=live)
+        # 1. Baseline (original strategy)
+        results["eq_ict"] = run_single(df_eq, "equity", f"{symbol} Baseline",
+                                        max_hold=eq_max_hold)
+
+        # 2. Refined: OTE + tight SL + displacement filter
+        results["eq_refined"] = run_single(df_eq, "equity", f"{symbol} Refined",
+                                            use_ote=True, tight_sl=True,
+                                            require_displacement=True,
+                                            max_hold=eq_max_hold)
+
+        # 3. Refined + Kronos
+        results["eq_refined_kronos"] = run_single(df_eq, "equity", f"{symbol} Refined+Kronos",
+                                                   use_ote=True, tight_sl=True,
+                                                   require_displacement=True,
+                                                   max_hold=eq_max_hold,
+                                                   kronos_signals=kronos_eq)
+
+        pd.DataFrame(results["eq_ict"].get("trades_df", [])).to_csv(
+            OUT / f"{symbol.lower()}_trades.csv", index=False)
+        pd.DataFrame(results["eq_refined"].get("trades_df", [])).to_csv(
+            OUT / f"{symbol.lower()}_refined_trades.csv", index=False)
+
+    if results:
+        html = build_report(results, symbol=symbol, live=live, interval=interval)
         report_path = OUT / "report.html"
         report_path.write_text(html, encoding="utf-8")
         print(f"\nReport saved: {report_path.resolve()}")
@@ -93,39 +119,56 @@ def run(live=False, real_kronos=False, market="all", symbol="QQQ"):
 
 # ── HTML report ──
 
-def build_report(results, symbol="QQQ", live=False):
+def build_report(results, symbol="QQQ", live=False, interval="5m"):
     import json as _json
 
-    data_note = "live Binance.US + yfinance" if live else "synthetic data"
+    data_note = f"live Binance.US + yfinance {interval}" if live else "synthetic data"
 
     def stat_card(label, value, sub="", positive=None):
         col = "#22c55e" if positive is True else ("#ef4444" if positive is False else "#e2e8f0")
-        return f'<div class="card"><div class="card-label">{label}</div><div class="card-value" style="color:{col}">{value}</div><div class="card-sub">{sub}</div></div>'
+        return (f'<div class="card"><div class="card-label">{label}</div>'
+                f'<div class="card-value" style="color:{col}">{value}</div>'
+                f'<div class="card-sub">{sub}</div></div>')
 
     def stats_row(s):
-        wr, pnl, dd, ar, n = s.get("win_rate",0), s.get("total_pnl_pct",0), s.get("max_drawdown_pct",0), s.get("avg_rr",0), s.get("trades",0)
-        return (stat_card("Win Rate", f"{wr}%", f"{n} trades", positive=(wr>=40)) +
-                stat_card("Avg R:R", f"{ar:.2f}R", "avg per trade", positive=(ar>=1.5)) +
-                stat_card("Total P&L", f"{pnl:+.1f}%", "account % (1% risk/trade)", positive=(pnl>=0)) +
-                stat_card("Max Drawdown", f"{dd:.1f}%", "peak-to-trough", positive=(dd>-10)))
+        wr  = s.get("win_rate", 0)
+        pnl = s.get("total_pnl_pct", 0)
+        dd  = s.get("max_drawdown_pct", 0)
+        ar  = s.get("avg_rr", 0)
+        n   = s.get("trades", 0)
+        return (stat_card("Win Rate",     f"{wr}%",       f"{n} trades",         positive=(wr >= 40)) +
+                stat_card("Avg R:R",      f"{ar:.2f}R",   "avg per trade",       positive=(ar >= 1.5)) +
+                stat_card("Total P&L",    f"{pnl:+.1f}%", "account % (1% risk)", positive=(pnl >= 0)) +
+                stat_card("Max Drawdown", f"{dd:.1f}%",   "peak-to-trough",      positive=(dd > -10)))
 
     def trade_rows(s):
         if s.get("trades", 0) == 0 or "trades_df" not in s:
             return "<tr><td colspan='7'>No trades</td></tr>"
         rows = []
         for _, t in s["trades_df"].iterrows():
-            c = "#22c55e" if t["outcome"]=="win" else ("#ef4444" if t["outcome"]=="loss" else "#f59e0b")
-            rows.append(f"<tr><td>{str(t['entry_time'])[:16]}</td><td>{t['direction'].upper()}</td>"
-                        f"<td>{t['session'].upper()}</td><td style='color:{c};font-weight:600'>{t['outcome'].upper()}</td>"
-                        f"<td>{t['rr_achieved']:.2f}R</td><td style='color:{c}'>{t['pnl_pct']:+.2f}%</td>"
-                        f"<td>{t['entry']:,.2f}</td></tr>")
+            c = "#22c55e" if t["outcome"] == "win" else ("#ef4444" if t["outcome"] == "loss" else "#f59e0b")
+            rows.append(
+                f"<tr><td>{str(t['entry_time'])[:16]}</td><td>{t['direction'].upper()}</td>"
+                f"<td>{t['session'].upper()}</td><td style='color:{c};font-weight:600'>{t['outcome'].upper()}</td>"
+                f"<td>{t['rr_achieved']:.2f}R</td><td style='color:{c}'>{t['pnl_pct']:+.2f}%</td>"
+                f"<td>{t['entry']:,.2f}</td></tr>"
+            )
         return "\n".join(rows)
 
-    # Build dataset list for Chart.js
-    colors = {"btc_ict": "#818cf8", "btc_kronos": "#6366f1",
-              "eq_ict": "#34d399",  "eq_kronos": "#059669"}
-    names  = {"btc_ict": "BTC ICT", "btc_kronos": "BTC+Kronos",
-              "eq_ict":  f"{symbol} ICT", "eq_kronos": f"{symbol}+Kronos"}
+    colors = {
+        "btc_ict":           "#818cf8",
+        "btc_kronos":        "#6366f1",
+        "eq_ict":            "#94a3b8",   # gray -- baseline reference
+        "eq_refined":        "#34d399",   # emerald
+        "eq_refined_kronos": "#059669",   # deeper emerald
+    }
+    names = {
+        "btc_ict":           "BTC ICT",
+        "btc_kronos":        "BTC+Kronos",
+        "eq_ict":            f"{symbol} Baseline",
+        "eq_refined":        f"{symbol} Refined",
+        "eq_refined_kronos": f"{symbol} Refined+Kronos",
+    }
 
     datasets_js = []
     for key, s in results.items():
@@ -138,12 +181,11 @@ def build_report(results, symbol="QQQ", live=False):
             borderWidth: 2, pointRadius: 0, fill: true, tension: 0.3
         }}""")
 
-    # Sections
     sections = ""
     if "btc_ict" in results:
         sections += f"""
         <div class="section">
-          <h2><span class="tag-btc">BTC/USDT</span> ICT Only</h2>
+          <h2><span class="tag-btc">BTC/USDT</span> ICT Baseline</h2>
           <div class="cards">{stats_row(results['btc_ict'])}</div>
         </div>
         <div class="section">
@@ -153,15 +195,22 @@ def build_report(results, symbol="QQQ", live=False):
     if "eq_ict" in results:
         sections += f"""
         <div class="section">
-          <h2><span class="tag-eq">{symbol}</span> ICT Only</h2>
+          <h2><span class="tag-eq">{symbol}</span> Baseline <span class="note">midpoint entry &middot; sweep SL</span></h2>
           <div class="cards">{stats_row(results['eq_ict'])}</div>
-        </div>
+        </div>"""
+    if "eq_refined" in results:
+        sections += f"""
         <div class="section">
-          <h2><span class="tag-eq">{symbol}</span> ICT + Kronos</h2>
-          <div class="cards">{stats_row(results['eq_kronos'])}</div>
+          <h2><span class="tag-eq">{symbol}</span> Refined <span class="note">OTE entry &middot; FVG-edge SL &middot; displacement filter</span></h2>
+          <div class="cards">{stats_row(results['eq_refined'])}</div>
+        </div>"""
+    if "eq_refined_kronos" in results:
+        sections += f"""
+        <div class="section">
+          <h2><span class="tag-eq">{symbol}</span> Refined + Kronos <span class="note">+ AI directional filter</span></h2>
+          <div class="cards">{stats_row(results['eq_refined_kronos'])}</div>
         </div>"""
 
-    # Trade log tabs
     trade_logs = ""
     for key, label in names.items():
         if key not in results: continue
@@ -174,10 +223,12 @@ def build_report(results, symbol="QQQ", live=False):
           </table></div>
         </div>"""
 
+    max_len_js = ",".join(str(len(s.get("equity", [100]))) for s in results.values())
+
     html = f"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8">
-<title>Vitaliy Kronos -- Market Comparison</title>
+<title>Vitaliy Kronos -- Strategy Comparison</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
   *{{box-sizing:border-box;margin:0;padding:0}}
@@ -185,7 +236,8 @@ def build_report(results, symbol="QQQ", live=False):
   h1{{font-size:1.6rem;font-weight:700;margin-bottom:4px;color:#f1f5f9}}
   .subtitle{{color:#94a3b8;font-size:.85rem;margin-bottom:28px}}
   .section{{margin-bottom:30px}}
-  h2{{font-size:1.05rem;font-weight:600;color:#cbd5e1;margin-bottom:14px;border-left:3px solid #6366f1;padding-left:10px}}
+  h2{{font-size:1.05rem;font-weight:600;color:#cbd5e1;margin-bottom:14px;border-left:3px solid #6366f1;padding-left:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}}
+  .note{{font-size:.72rem;color:#475569;font-weight:400}}
   .cards{{display:flex;gap:14px;flex-wrap:wrap}}
   .card{{background:#1e293b;border-radius:10px;padding:18px 22px;min-width:150px;flex:1}}
   .card-label{{font-size:.72rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em}}
@@ -202,8 +254,8 @@ def build_report(results, symbol="QQQ", live=False):
   .tag-eq{{background:#10b98122;color:#34d399;padding:3px 10px;border-radius:6px;font-size:.8rem}}
 </style>
 </head><body>
-<h1>Vitaliy Kronos -- BTC vs {symbol} Comparison</h1>
-<p class="subtitle">ICT session strategy · 1-min candles · 1% risk/trade · 120-min cooldown · {data_note}</p>
+<h1>Vitaliy Kronos -- Strategy Comparison</h1>
+<p class="subtitle">ICT session strategy &middot; 1% risk/trade &middot; 120-min cooldown &middot; {data_note}</p>
 
 {sections}
 
@@ -215,7 +267,7 @@ def build_report(results, symbol="QQQ", live=False):
 <div class="section grid">{trade_logs}</div>
 
 <script>
-const maxLen = Math.max({",".join(str(len(s.get("equity",[100]))) for s in results.values())});
+const maxLen = Math.max({max_len_js});
 const labels = Array.from({{length: maxLen}}, (_,i) => i);
 new Chart(document.getElementById('eqChart'), {{
   type: 'line',

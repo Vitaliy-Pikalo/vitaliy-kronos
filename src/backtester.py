@@ -71,7 +71,7 @@ def fetch_yfinance_klines(symbol="QQQ", days=7, interval="1m"):
         raise ImportError("Run: pip install yfinance")
     from zoneinfo import ZoneInfo
     ET = ZoneInfo("America/New_York")
-    period = f"{min(days, 7)}d" if interval == "1m" else f"{days}d"
+    period = f"{min(days, 7)}d" if interval == "1m" else f"{min(days, 60)}d"
     ticker = yf.Ticker(symbol)
     df = ticker.history(period=period, interval=interval, prepost=True)
     df.columns = [c.lower() for c in df.columns]
@@ -164,9 +164,20 @@ def detect_sweeps(a, ranges, trade_windows=None):
     return sweeps
 
 
-def find_fvg(a, sweep_pos, direction, lookforward=30):
+def find_fvg(a, sweep_pos, direction, lookforward=30, require_displacement=False):
+    if require_displacement:
+        body_start = max(0, sweep_pos - 20)
+        bodies = np.abs(a["close"][body_start:sweep_pos] - a["open"][body_start:sweep_pos])
+        avg_body = bodies.mean() if len(bodies) > 5 else 0
+    else:
+        avg_body = 0
     end = min(sweep_pos + lookforward, len(a["high"]) - 2)
     for i in range(sweep_pos + 1, end):
+        # Displacement filter: require a strong impulse candle (1.5x avg body)
+        if require_displacement and avg_body > 0:
+            body = abs(a["close"][i] - a["open"][i])
+            if body < 1.5 * avg_body:
+                continue
         ph, nl = a["high"][i-1], a["low"][i+1]
         pl, nh = a["low"][i-1],  a["high"][i+1]
         if direction == "bullish" and ph < nl:
@@ -197,28 +208,43 @@ def draw_on_liquidity(a, sweep_pos, direction, lookback=200):
         return max(below) if below else None
 
 
-def simulate_trade(a, sweep, fvg, dol, risk_pct=0.01, fallback_rr=2.0, max_hold=120):
+def simulate_trade(a, sweep, fvg, dol, risk_pct=0.01, fallback_rr=2.0, max_hold=120,
+                   use_ote=False, tight_sl=False):
     direction = sweep["direction"]
-    buf = fvg["entry"] * 0.0005
-    sl = (sweep["extreme"] - buf) if direction == "bullish" else (sweep["extreme"] + buf)
-    risk = abs(fvg["entry"] - sl)
-    if risk < fvg["entry"] * 0.0001:
+    fvg_range = fvg["top"] - fvg["bot"]
+
+    # Entry: OTE (62% deep into FVG from entry side) or midpoint
+    if use_ote and fvg_range > 0:
+        entry_price = (fvg["bot"] + 0.38 * fvg_range) if direction == "bullish" \
+                      else (fvg["top"] - 0.38 * fvg_range)
+    else:
+        entry_price = fvg["mid"]
+
+    # SL: tight (just beyond FVG edge) or wide (sweep extreme)
+    buf = entry_price * 0.0003
+    if tight_sl:
+        sl = (fvg["bot"] - buf) if direction == "bullish" else (fvg["top"] + buf)
+    else:
+        buf = entry_price * 0.0005
+        sl = (sweep["extreme"] - buf) if direction == "bullish" else (sweep["extreme"] + buf)
+
+    risk = abs(entry_price - sl)
+    if risk < entry_price * 0.0001:
         return None
-    if dol is not None and abs(dol - fvg["entry"]) / risk >= 1.0:
+    if dol is not None and abs(dol - entry_price) / risk >= 1.0:
         tp = dol
-        rr = abs(tp - fvg["entry"]) / risk
+        rr = abs(tp - entry_price) / risk
     else:
         rr = fallback_rr
-        tp = fvg["entry"] + rr * risk * (1 if direction == "bullish" else -1)
+        tp = entry_price + rr * risk * (1 if direction == "bullish" else -1)
     fill_pos = None
     for i in range(fvg["pos"], min(fvg["pos"] + 30, len(a["high"]))):
-        if direction == "bullish" and a["low"][i] <= fvg["top"] and a["low"][i] >= fvg["bot"]:
+        if direction == "bullish" and a["low"][i] <= fvg["top"] and a["high"][i] >= fvg["bot"]:
             fill_pos = i; break
-        if direction == "bearish" and a["high"][i] >= fvg["bot"] and a["high"][i] <= fvg["top"]:
+        if direction == "bearish" and a["high"][i] >= fvg["bot"] and a["low"][i] <= fvg["top"]:
             fill_pos = i; break
     if fill_pos is None:
         return None
-    entry_price = fvg["mid"]
     risk = abs(entry_price - sl)
     if risk == 0: return None
     tp = entry_price + rr * risk * (1 if direction == "bullish" else -1)
@@ -250,10 +276,17 @@ def _result(entry_time, exit_time, direction, entry, sl, tp, exit_px, rr, risk_p
 # ── Full pipeline ──
 
 def run_backtest(df, risk_pct=0.01, label="ICT", verbose=True,
-                 kronos_signals=None, market="btc"):
+                 kronos_signals=None, market="btc",
+                 use_ote=False, tight_sl=False, require_displacement=False,
+                 max_hold=120, fallback_rr=2.0):
     market_cfg = MARKET_CONFIGS.get(market, MARKET_CONFIGS["btc"])
     if verbose:
-        print(f"\n{'='*55}\n Running: {label} [{market_cfg['label']}]\n{'='*55}")
+        flags = []
+        if use_ote: flags.append("OTE")
+        if tight_sl: flags.append("TightSL")
+        if require_displacement: flags.append("Displacement")
+        tag = f" [{', '.join(flags)}]" if flags else ""
+        print(f"\n{'='*55}\n Running: {label}{tag} [{market_cfg['label']}]\n{'='*55}")
 
     a = _arrays(df)
     if verbose: print("Session ranges...")
@@ -276,11 +309,12 @@ def run_backtest(df, risk_pct=0.01, label="ICT", verbose=True,
             sig = kronos_signals.get(sw["time"].date())
             if sig is not None and sig != sw["direction"]:
                 continue
-        fvg = find_fvg(a, pos, sw["direction"])
+        fvg = find_fvg(a, pos, sw["direction"], require_displacement=require_displacement)
         if fvg is None:
             continue
         dol = draw_on_liquidity(a, pos, sw["direction"])
-        t   = simulate_trade(a, sw, fvg, dol, risk_pct=risk_pct)
+        t   = simulate_trade(a, sw, fvg, dol, risk_pct=risk_pct, max_hold=max_hold,
+                              use_ote=use_ote, tight_sl=tight_sl, fallback_rr=fallback_rr)
         if t is None:
             continue
         t["session"] = sw["session"]
